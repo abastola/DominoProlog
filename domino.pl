@@ -38,6 +38,12 @@ printGameDetails(State):-
 	format('~nRound: ~w ~nTournament Score: ~w ~nLayout: L- ~w -R ~nBoneyard: ~w ~nHuman Score: ~w ~nComputer Score: ~w ~nHuman Hand: ~w ~nComputer Hand: ~w ~nTurn: ~w ~nPrevious Player Passed: ~w ~n', 
 			[R, TS, L, B, HS, CS, HH, CH, T, P]).
 
+
+
+
+
+
+
 /*----------------------------------------------------------------------------------*/
 /*---------------------------------Distribute Hand----------------------------------*/
 /*----------------------------------------------------------------------------------*/
@@ -48,7 +54,6 @@ getSixDominos([D1, D2, D3, D4, D5, D6 | Tail], SixDominos, NewBoneyard) :-
 	NewBoneyard = Tail.
 
 distributeHandsToPlayers(State, NewState) :-
-	getGameState(State),
 	[TS, R, HS, CS, _, _, L, B, P, T] = State,
 	random_permutation(B, Boneyard),
 	getSixDominos(Boneyard, SixDominos1, Boneyard1),
@@ -58,13 +63,17 @@ distributeHandsToPlayers(State, NewState) :-
 	NewState = [TS, R, HS, CS, HumanHand, ComputerHand, L, Boneyard2, P, T].
 
 /* Distribute Hand */
-distributeHands(FinalState) :-
+distributeHands(State, FinalState) :-
 	getGameState(State),
 	[_, _, _, _, _, _, L, _, _, _] = State,
 	length(L, 0),
 	distributeHandsToPlayers(State, NewState),
 	printGameDetails(NewState),
 	FinalState = NewState.
+
+
+
+
 
 /*----------------------------------------------------------------------------------*/
 /*---------------------------------Find and Place Engine----------------------------*/
@@ -84,7 +93,7 @@ addOneDomino(State, NewState) :-
 	printGameDetails(NewState).
 
 /* Find and place Engine */
-findAndPlaceEngine(Player, Engine, Hand, Layout, NewHand, NewLayout) :-
+findAndPlaceEngine(_, Engine, Hand, Layout, NewHand, NewLayout) :-
 	delete(Hand, [Engine, Engine], NewHand),
 	append([[Engine, Engine]], Layout, NewLayout).
 
@@ -118,6 +127,104 @@ placeEngine("computer", State) :-
 		placeEngine("human", NewState)
 	).
 
+
+
+
+
+/*----------------------------------------------------------------------------------*/
+/*---------------------------------Find Best Moves----------------------------------*/
+/*----------------------------------------------------------------------------------*/
+
+/* Find Possible Moves in the side with end Point - Pip */
+hasPIP(Pip, Head) :-
+	=([Pip,_], Head); 
+	=([_, Pip], Head).
+
+findPossibleMoves(Pip, Hand, PossibleMoves) :-
+	include(hasPIP(Pip), Hand, PossibleMoves).
+
+/* Find Best Moves from the Possible Moves */
+findBestMove([], _, X, Y) :-
+	Y = X.
+
+findBestMove([Head|Tail], MaxSum, BestMove, ReturnValue) :-
+	[X, Y] = Head,
+	Sum is X+Y,
+	(Sum > MaxSum ->
+		NewMaxSum is Sum,
+		NewBestMove = Head,
+		findBestMove(Tail, NewMaxSum, NewBestMove, ReturnValue)
+		;
+		findBestMove(Tail, MaxSum, BestMove, ReturnValue)
+	).
+	
+/* Find Best Possible Move for Human */
+findBestPossibleMove(Left, Right, "human", Hand, Passed, BestMove) :-
+	(=(Passed, "true") ->
+		findPossibleMoves(Left, Hand, PossibleMovesLeft),
+		findPossibleMoves(Right, Hand, PossibleMovesRight),
+		union(PossibleMovesLeft, PossibleMovesRight, PossibleMoves),
+		Moves = PossibleMoves
+		;
+		findPossibleMoves(Left, Hand, PossibleMovesLeft),
+		(member([Right, Right], Hand) ->
+			append([[Right, Right]], PossibleMovesLeft, NewPossibleMoves),
+			Moves  = NewPossibleMoves
+			;
+			Moves = PossibleMovesLeft
+		)
+	),
+	findBestMove(Moves, 0, [], Move),
+	(=(Move, []) ->
+		BestMove=[Move, "No Moves Possible. Please draw a domino from boneyard. If already drawn, pass."]
+		;
+		(member(Move, PossibleMovesLeft) ->
+			BestMove = [Move, "left"],
+			Position = "left"
+			;
+			BestMove = [Move, "right"],
+			Position = "right"
+		),
+		format("~w has the maximum sum out of all possible moves. Hence, best Move is ~w on ~w.", [Move, Move, Position])
+	).
+	
+	
+/* Find Best Possible Move for Computer */
+findBestPossibleMove(Left, Right, "computer", Hand, Passed, BestMove) :-
+	(=(Passed, "true") ->
+		findPossibleMoves(Left, Hand, PossibleMovesLeft),
+		findPossibleMoves(Right, Hand, PossibleMovesRight),
+		union(PossibleMovesLeft, PossibleMovesRight, PossibleMoves),
+		Moves = PossibleMoves
+		;
+		findPossibleMoves(Right, Hand, PossibleMovesRight),
+		(member([Left, Left], Hand) ->
+			append([[Left, Left]], PossibleMovesRight, NewPossibleMoves),
+			Moves  = NewPossibleMoves
+			;
+			Moves = PossibleMovesRight
+		)
+	),
+	findBestMove(Moves, 0, [], Move),
+	(=(Move, []) ->
+		BestMove=[Move, "No Moves Possible"]
+		;
+		(member(Move, PossibleMovesRight) ->
+			BestMove = [Move, "right"],
+			Position = "right"
+			;
+			BestMove = [Move, "left"],
+			Position = "left"
+		),
+		format("~w has the maximum sum out of all possible moves. Hence, best Move is ~w on ~w.", [Move, Move, Position])
+	).
+
+
+
+
+
+	
+
 /*----------------------------------------------------------------------------------*/
 /*---------------------------------Play Turns---------------------------------------*/
 /*----------------------------------------------------------------------------------*/
@@ -138,24 +245,33 @@ nextTurn(State) :-
 /* Human Turn */
 play("human", State) :-
 	nl,
-	write("--------------Human's Turn--------------"),
+	write("--------------Human's Turn--------------"),nl,
 	[TS, R, HS, CS, HH, CH, L, B, P, T] = State,
-	getLeftRightPips(L, Left, Right).
+	getLeftRightPips(L, Left, Right),
+	findBestPossibleMove(Left, Right, "human", HH, P, BestMove).
 
 /* Computer Turn */
 play("computer", State) :-
 	nl,
-	write("-------------Computer's Turn--------------"),
+	write("-------------Computer's Turn--------------"),nl,
 	[TS, R, HS, CS, HH, CH, L, B, P, T] = State,
-	getLeftRightPips(L, Left, Right).
+	getLeftRightPips(L, Left, Right),
+	findBestPossibleMove(Left, Right, "computer", CH, P, BestMove).
+
+
+
+
+
+
 
 /*----------------------------------------------------------------------------------*/
 /*---------------------------------Start Game---------------------------------------*/
 /*----------------------------------------------------------------------------------*/
 
 startGame() :-
-	distributeHands(State),
-	placeEngine("human", State).
+	getGameState(State),
+	distributeHands(State, NewState),
+	placeEngine("human", NewState).
 
 
 
