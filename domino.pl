@@ -21,11 +21,11 @@ getGameState(State):-
 	[ _, _, _, _, _, B  | _ ] = Data,
 	[ _, _, _, _, _, _, P, _ ] = Data,
 	[ _, _, _, _, _, _, _, T] = Data,
-	State = [TS, R, HS, CS, HH, CH, L, B, P, T].
+	State = [TS, R, HS, CS, HH, CH, L, B, P, T, 0].
 
 /* Print the Game State */
 printGameDetails(State):-
-	[TS, R, HS, CS, HH, CH, L, B, P, T] = State,
+	[TS, R, HS, CS, HH, CH, L, B, P, T, _] = State,
 	format('~nRound: ~w ~nTournament Score: ~w ~nLayout: L- ~w -R ~nBoneyard: ~w ~nHuman Score: ~w ~nComputer Score: ~w ~nHuman Hand: ~w ~nComputer Hand: ~w ~nTurn: ~w ~nPrevious Player Passed: ~w ~n', 
 			[R, TS, L, B, HS, CS, HH, CH, T, P]).
 
@@ -39,19 +39,17 @@ getSixDominos([D1, D2, D3, D4, D5, D6 | Tail], SixDominos, NewBoneyard) :-
 	NewBoneyard = Tail.
 
 distributeHandsToPlayers(State, NewState) :-
-	[TS, R, HS, CS, _, _, L, B, P, T] = State,
+	[TS, R, HS, CS, _, _, L, B, P, T, E] = State,
 	random_permutation(B, Boneyard),
 	getSixDominos(Boneyard, SixDominos1, Boneyard1),
 	HumanHand = SixDominos1,
 	getSixDominos(Boneyard1, SixDominos2, Boneyard2),
 	ComputerHand = SixDominos2,
-	NewState = [TS, R, HS, CS, HumanHand, ComputerHand, L, Boneyard2, P, T].
+	NewState = [TS, R, HS, CS, HumanHand, ComputerHand, L, Boneyard2, P, T, E].
 
 /* Distribute Hand */
 distributeHands(State, FinalState) :-
 	getGameState(State),
-	[_, _, _, _, _, _, L, _, _, _] = State,
-	length(L, 0),
 	distributeHandsToPlayers(State, NewState),
 	printGameDetails(NewState),
 	FinalState = NewState.
@@ -62,14 +60,14 @@ distributeHands(State, FinalState) :-
 
 /* Add one Domino to each Player */
 addOneDomino(State, NewState) :-
-	[TS, R, HS, CS, HH, CH, L, B, P, T] = State,
+	[TS, R, HS, CS, HH, CH, L, B, P, T, E] = State,
 	[Head1 | _] = B,
 	append([Head1], HH, HumanHand),
 	delete(B, Head1, Boneyard1),
 	[Head2 | _] = Boneyard1,
 	append([Head2], CH, ComputerHand),
 	delete(Boneyard1, Head2, Boneyard2),
-	NewState = [TS, R, HS, CS, HumanHand, ComputerHand, L, Boneyard2, P, T],
+	NewState = [TS, R, HS, CS, HumanHand, ComputerHand, L, Boneyard2, P, T, E],
 	write("Added Domino to each Player."), nl,
 	printGameDetails(NewState).
 
@@ -80,12 +78,12 @@ findAndPlaceEngine(_, Engine, Hand, Layout, NewHand, NewLayout) :-
 
 /* Find if Human has Engine */ 
 placeEngine("human", State) :-
-	[TS, R, HS, CS, HH, CH, L, B, P, _] = State,
+	[TS, R, HS, CS, HH, CH, L, B, P, _, _] = State,
 	Engine is 7 - R,
 	(member([Engine, Engine], HH) ->
 		(
 			findAndPlaceEngine("human", Engine, HH, L, HumanHand, Layout),
-			NewState = [TS, R, HS, CS, HumanHand, CH, Layout, B, P, "computer"],
+			NewState = [TS, R, HS, CS, HumanHand, CH, Layout, B, P, "computer", 0],
 			write("Human placed the Engine."), nl,
 			nextTurn(NewState)
 		);
@@ -94,12 +92,12 @@ placeEngine("human", State) :-
 
 /* Find if Computer has Engine */
 placeEngine("computer", State) :-
-	[TS, R, HS, CS, HH, CH, L, B, P, _] = State,
+	[TS, R, HS, CS, HH, CH, L, B, P, _, E] = State,
 	Engine is 7 - R,
 	(member([Engine, Engine], CH) ->
 		(
 			findAndPlaceEngine("Computer", Engine, CH, L, ComputerHand, Layout),
-			NewState = [TS, R, HS, CS, HH, ComputerHand, Layout, B, P, "human"],			
+			NewState = [TS, R, HS, CS, HH, ComputerHand, Layout, B, P, "human", E],			
 			write("Computer placed the Engine."), nl,
 			nextTurn(NewState)
 		);
@@ -114,8 +112,7 @@ placeEngine("computer", State) :-
 
 /* Find Possible Moves in the side with end Point - Pip */
 hasPIP(Pip, Head) :-
-	=([Pip,_], Head); 
-	=([_, Pip], Head).
+	=([Pip,_], Head); =([_, Pip], Head).
 
 addSideToPossibleMoves([], _, X, Y) :-
 	Y = X.
@@ -148,10 +145,7 @@ findBestMove([Head|Tail], MaxSum, BestMove, ReturnValue) :-
 /* Find Best Possible Move out of all Moves */
 findBestPossibleMove(Moves, BestMove):-
 	findBestMove(Moves, 0, [], Move),
-	(=(Move, []) ->	
-		BestMove=[];
-		BestMove=Move
-	).
+	(=(Move, []) ->	BestMove=[];BestMove=Move).
 
 /* Find All Possible Move for Human */
 findAllPossibleMoveHuman(Left, Right, "human", Hand, Passed, AllMoves) :-
@@ -189,6 +183,13 @@ findAllPossibleMoveComputer(Left, Right, "computer", Hand, Passed, AllMoves) :-
 	),
 	AllMoves = Moves.
 
+/* Get Left and Right Pips of Layout */
+getLeftRightPips(Layout, Left, Right) :-
+	nth1(1, Layout, First),
+	[Left, _] = First,
+	last(Layout, Last),
+	[_, Right] = Last.
+
 /*----------------------------------------------------------------------------------*/
 /*---------------------------------Get Human Move-----------------------------------*/
 /*----------------------------------------------------------------------------------*/
@@ -210,7 +211,7 @@ getHumanInput(State, Drawn) :-
 performHumanCommand(State, "left", [P1, P2], Drawn) :-
 	atom_number(P1, S1),
 	atom_number(P2, S2),
-	[_, _, _, _, HH, _, L, _, P, _] = State,
+	[_, _, _, _, HH, _, L, _, P, _, E] = State,
 	getLeftRightPips(L, Left, Right),
 	findAllPossibleMoveHuman(Left, Right, "human", HH, P, AllMoves),
 	((member(["left", S1, S2], AllMoves);member(["left", S2, S1], AllMoves)) ->
@@ -224,7 +225,7 @@ performHumanCommand(State, "left", [P1, P2], Drawn) :-
 performHumanCommand(State, "right", [P1, P2], Drawn) :-
 	atom_number(P1, S1),
 	atom_number(P2, S2),
-	[_, _, _, _, HH, _, L, _, P, _] = State,
+	[_, _, _, _, HH, _, L, _, P, _, E] = State,
 	getLeftRightPips(L, Left, Right),
 	findAllPossibleMoveHuman(Left, Right, "human", HH, P, AllMoves),
 	((member(["right", S1, S2], AllMoves);member(["right", S2, S1], AllMoves)) ->
@@ -237,7 +238,7 @@ performHumanCommand(State, "right", [P1, P2], Drawn) :-
 /* Human draws */
 performHumanCommand(State, "draw", [], Drawn) :-
 	(=(Drawn, "false") ->
-		[TS, R, HS, CS, HH, CH, L, B, P, T] = State,
+		[TS, R, HS, CS, HH, CH, L, B, P, T, E] = State,
 		getLeftRightPips(L, Left, Right),
 		findAllPossibleMoveHuman(Left, Right, "human", HH, P, AllMoves),
 		findBestPossibleMove(AllMoves, BestMove),
@@ -247,7 +248,7 @@ performHumanCommand(State, "draw", [], Drawn) :-
 				performHumanCommand(State, "pass", [], Drawn)
 				;
 				addOneDominoToHand(B, HH, NewHand, NewBoneyard),
-				NewState = [TS, R, HS, CS, NewHand, CH, L, NewBoneyard, P, T],
+				NewState = [TS, R, HS, CS, NewHand, CH, L, NewBoneyard, P, T, E],
 				format("Added one Domino to Human Hand.~n~n"),
 				printGameDetails(NewState),
 				play("human", NewState, "true")
@@ -263,20 +264,21 @@ performHumanCommand(State, "draw", [], Drawn) :-
 
 /* Human passes */
 performHumanCommand(State, "pass", [], Drawn) :-
-	[TS, R, HS, CS, HH, CH, L, B, P, _] = State,
+	[TS, R, HS, CS, HH, CH, L, B, P, _, E] = State,
 	getLeftRightPips(L, Left, Right),
 	findAllPossibleMoveHuman(Left, Right, "human", HH, P, AllMoves),
 	findBestPossibleMove(AllMoves, BestMove),
 	(=(Drawn, "false") ->
 		(=(B, []) ->
-			NewState = [TS, R, HS, CS, HH, CH, L, B, "true", "computer"],
+			NewE is E +1,
+			NewState = [TS, R, HS, CS, HH, CH, L, B, "true", "computer", NewE],
 			nextTurn(NewState);
 			format("Can't pass yet. You can draw since Boneyard is not empty.~n"),
 			play("human", State, Drawn)
 		)
 		;
 		(=(BestMove, []) ->
-			NewState = [TS, R, HS, CS, HH, CH, L, B, "true", "computer"],
+			NewState = [TS, R, HS, CS, HH, CH, L, B, "true", "computer", 0],
 			nextTurn(NewState);
 			format("Can't pass yet. Moves possible.~n"),
 			play("human", State, Drawn)
@@ -285,7 +287,7 @@ performHumanCommand(State, "pass", [], Drawn) :-
 
 /* Human asks for help */
 performHumanCommand(State, "help", [], Drawn) :-
-	[_, _, _, _, HH, _, L, _, P, _] = State,
+	[_, _, _, _, HH, _, L, _, P, _, _] = State,
 	getLeftRightPips(L, Left, Right),
 	findAllPossibleMoveHuman(Left, Right, "human", HH, P, AllMoves),
 	format("Possible Moves are: ~w.~n", [AllMoves]),
@@ -299,20 +301,20 @@ performHumanCommand(State, "help", [], Drawn) :-
 
 /* Insert Domino to Left */
 placeOnLeftHuman(State, [P1, P2]) :-
-	[TS, R, HS, CS, HH, CH, L, B, _, _] = State,
+	[TS, R, HS, CS, HH, CH, L, B, _, _, _] = State,
 	(member([P1, P2], HH) -> delete(HH, [P1, P2], NewHand); delete(HH, [P2, P1], NewHand)),
 	pushFront([P1, P2], L, NewLayout),
 	format("Human placed ~w on left.~n", [[P1,P2]]),
-	NewState = [TS, R, HS, CS, NewHand, CH, NewLayout, B, "false", "computer"],
+	NewState = [TS, R, HS, CS, NewHand, CH, NewLayout, B, "false", "computer", 0],
 	nextTurn(NewState).
 
 /* Insert Domino to Right */
 placeOnRightHuman(State, [P1, P2]) :-
-	[TS, R, HS, CS, HH, CH, L, B, _, _] = State,
+	[TS, R, HS, CS, HH, CH, L, B, _, _, _] = State,
 	(member([P1, P2], HH) -> delete(HH, [P1, P2], NewHand); delete(HH, [P2, P1], NewHand)),
 	pushEnd([P1, P2], L, NewLayout),
 	format("Human placed ~w on Right.~n", [[P1,P2]]),
-	NewState = [TS, R, HS, CS, NewHand, CH, NewLayout, B, "false", "computer"],
+	NewState = [TS, R, HS, CS, NewHand, CH, NewLayout, B, "false", "computer", 0],
 	nextTurn(NewState).
 
 /* Draw one domino to hand */
@@ -320,16 +322,20 @@ addOneDominoToHand([Head|Tail], Hand, NewHand, NewBoneyard) :-
 	append([Head], Hand, NewHand),
 	NewBoneyard = Tail.
 
+/* Push Element to Front of List */
 pushFront(Element, List, NewList):-
 	append([Element], List, NewList).
+
+/* Push Element to End of List */
 pushEnd(Element, List, NewList) :-
 	append(List, [Element], NewList).
+
 /*----------------------------------------------------------------------------------*/
 /*---------------------------------Get Computer Move--------------------------------*/
 /*----------------------------------------------------------------------------------*/
 
 performComputerCommand(State, ["left", P1, P2], _):-
-	[TS, R, HS, CS, HH, CH, L, B, _, _] = State,
+	[TS, R, HS, CS, HH, CH, L, B, _, _, _] = State,
 	(member([P1, P2], CH) -> delete(CH, [P1, P2], NewHand); delete(CH, [P2, P1], NewHand)),
 	getLeftRightPips(L, Left, _),
 	(=(Left, P1) ->
@@ -337,11 +343,11 @@ performComputerCommand(State, ["left", P1, P2], _):-
 		pushFront([P1, P2], L, NewLayout)
 	),
 	format("Computer placed ~w on left since it has the maximum sum out all possible moves.~n", [[P1,P2]]),
-	NewState = [TS, R, HS, CS, HH, NewHand, NewLayout, B, "false", "human"],
+	NewState = [TS, R, HS, CS, HH, NewHand, NewLayout, B, "false", "human", 0],
 	nextTurn(NewState).
 
 performComputerCommand(State, ["right", P1, P2], _):-
-	[TS, R, HS, CS, HH, CH, L, B, _, _] = State,
+	[TS, R, HS, CS, HH, CH, L, B, _, _, _] = State,
 	(member([P1, P2], CH) -> delete(CH, [P1, P2], NewHand); delete(CH, [P2, P1], NewHand)),
 	getLeftRightPips(L, _, Right),
 	(=(Right, P1) ->
@@ -349,45 +355,94 @@ performComputerCommand(State, ["right", P1, P2], _):-
 		pushEnd([P2, P1], L, NewLayout)
 	),
 	format("Computer placed ~w on right since it has the maximum sum out of all possible moves.~n", [[P1,P2]]),
-	NewState = [TS, R, HS, CS, HH, NewHand, NewLayout, B, "false", "human"],
+	NewState = [TS, R, HS, CS, HH, NewHand, NewLayout, B, "false", "human", 0],
 	nextTurn(NewState).
 
 performComputerCommand(State, [], Drawn) :-
-	[TS, R, HS, CS, HH, CH, L, B, P, T] = State,
+	[TS, R, HS, CS, HH, CH, L, B, P, T, E] = State,
 	(=(Drawn, "false") ->
 			(=(B, []) ->
-					write("Computer Passed because Boneyard is empty.~n"),
-					NewState = [TS, R, HS, CS, HH, CH, L, B, "true", "human"],
+					format("Computer Passed because Boneyard is empty.~n"),
+					NewE is E + 1,
+					NewState = [TS, R, HS, CS, HH, CH, L, B, "true", "human", NewE],
 					nextTurn(NewState)
 				;
 					addOneDominoToHand(B, CH, NewHand, NewBoneyard),
-					NewState = [TS, R, HS, CS, HH, NewHand, L, NewBoneyard, P, T],
+					NewState = [TS, R, HS, CS, HH, NewHand, L, NewBoneyard, P, T, E],
 					format("Computer Drew. Added one Domino to Computer Hand.~n~n"),
 					printGameDetails(NewState),
 					play("computer", NewState, "true")
 				)
 		;
 			write("Computer Passed since it has already drawn from Boneyard."),
-			NewState = [TS, R, HS, CS, HH, CH, L, B, "true", "human"],
+			NewState = [TS, R, HS, CS, HH, CH, L, B, "true", "human", 0],
 			nextTurn(NewState)
 	).
 
 /*----------------------------------------------------------------------------------*/
+/*------------------------Check if Round or Tournament has Ended--------------------*/
+/*-------------------------------Calculate Round Score------------------------------*/
+
+/* Determine if the round or tournament ended */
+nextTurn(State) :-
+	checkIfRoundEnded(State).
+
+/* Determine if round has ended */
+checkIfRoundEnded(State) :-
+	[_, R, HS, CS, HH, CH, _, _, _, _, E] = State,
+	calculateRoundScores(CH, 0, HumanScore),
+	calculateRoundScores(HH, 0, ComputerScore),
+	(=(E, 2) ->
+		(=(HumanScore, ComputerScore) ->
+			format("Same Score. Round has tied. No points for anyone.~n"),
+			printRoundScore(R, HS, CS);
+			(>(HumanScore, ComputerScore) ->
+				format("Human won since it has less Sum.~n"),
+				NewHS is HS + HumanScore,
+				printRoundScore(R, NewHS, CS);
+				format("Computer won since it has less Sum.~n"),
+				NewCS is CS + ComputerScore,
+				printRoundScore(R, HS, NewCS)
+			)
+		);
+		(=(HH, []) ->
+				format("Human's Hand is Empty. Human wins the Round"),
+				format("~nHuman gets ~w points.", [HumanScore]),
+				NewHS is HS + HumanScore,
+				printRoundScore(R, NewHS, CS)
+			;
+				(=(CH, []) ->
+					format("Computer's Hand is Empty. Computer wins the Round"),
+					format("~nComputer gets ~w points.", [ComputerScore]),
+					NewCS is CS + ComputerScore,
+					printRoundScore(R, HS, NewCS)
+					;
+					[_, _, _, _, _, _, _, _, _, T, _] = State,
+					printGameDetails(State),
+					play(T, State, "false")
+				)
+			)
+	).
+
+/* Calculate Score of each Player */
+calculateRoundScores([], Sum, Score) :-
+	Score = Sum.
+
+calculateRoundScores([Head | Tail], Sum, Score) :-
+	[P1, P2] = Head,
+	NewSum is P1 + P2 + Sum,
+	calculateRoundScores(Tail, NewSum, Score).
+
+/* Print Score of Each Player */
+printRoundScore(Round, HS, CS) :-
+	nl,	write("--------------Round Score--------------"),nl,
+	format("~nRound: ~w ~nHuman Score: ~w~nComputer Score: ~w~n------------------------------------~n", [Round, HS, CS]),
+	(=(Round, 7) -> NewRound is 1; NewRound is Round + 1),
+	startGame(NewRound, HS, CS).
+
+/*----------------------------------------------------------------------------------*/
 /*---------------------------------Play Turns---------------------------------------*/
 /*----------------------------------------------------------------------------------*/
-
-/* Get Left and Right ends of Board */
-getLeftRightPips(Layout, Left, Right) :-
-	nth1(1, Layout, First),
-	[Left, _] = First,
-	last(Layout, Last),
-	[_, Right] = Last.
-
-/* Play the Turn. Also Determine if the round or tournament ended */
-nextTurn(State) :-
-	[_, _, _, _, _, _, _, _, _, T] = State,
-	printGameDetails(State),
-	play(T, State, "false").
 
 /* Human Turn */
 play("human", State, Drawn) :-
@@ -397,18 +452,21 @@ play("human", State, Drawn) :-
 /* Computer Turn */
 play("computer", State, Drawn) :-
 	nl,	write("-------------Computer's Turn--------------"),nl,
-	[_, _, _, _, _, CH, L, _, P, _] = State,
+	[_, _, _, _, _, CH, L, _, P, _, _] = State,
 	getLeftRightPips(L, Left, Right),
 	findAllPossibleMoveComputer(Left, Right, "computer", CH, P, AllMoves),
-	format("Possible Moves are: ~w.~n", [AllMoves]),
 	findBestPossibleMove(AllMoves, BestMove),
+	format("Possible Moves are: ~w.~n", [AllMoves]),
 	format("Best Move is ~w.~n", [BestMove]),
 	performComputerCommand(State, BestMove, Drawn).
 
 /*----------------------------------------------------------------------------------*/
 /*---------------------------------Start Game---------------------------------------*/
 /*----------------------------------------------------------------------------------*/
-startGame() :-
+
+startGame(Round, HumanScore, ComputerScore) :-
 	getGameState(State),
 	distributeHands(State, NewState),
-	placeEngine("human", NewState).	
+	[TS, R, HS, CS, HH, CH, L, B, P, T, E] = NewState,
+	NewRoundState = [TS, Round, HumanScore, ComputerScore, HH, CH, L, B, P, T, E],
+	placeEngine("human", NewRoundState).	
