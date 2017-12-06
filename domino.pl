@@ -3,7 +3,7 @@
 /*----------------------------------------------------------------------------------*/
 
 /* New Game Data */
-getRawData([200,1, 
+getRawData([5,1, 
 	[[], 0], [[], 0], [], 
 	[[2, 3], [2, 4], [2, 5], [2, 6], [3, 3], [3, 4], [3, 5], [3, 6], [4, 4], [4, 5], [4, 6], [5, 5], [5, 6], [6, 6]], 
 	false, computer]).
@@ -389,33 +389,33 @@ nextTurn(State) :-
 
 /* Determine if round has ended */
 checkIfRoundEnded(State) :-
-	[_, R, HS, CS, HH, CH, _, _, _, _, E] = State,
+	[TS, R, HS, CS, HH, CH, _, _, _, _, E] = State,
 	calculateRoundScores(CH, 0, HumanScore),
 	calculateRoundScores(HH, 0, ComputerScore),
 	(=(E, 2) ->
 		(=(HumanScore, ComputerScore) ->
 			format("Same Score. Round has tied. No points for anyone.~n"),
-			printRoundScore(R, HS, CS);
+			printRoundScore(TS, R, HS, CS);
 			(>(HumanScore, ComputerScore) ->
 				format("Human won since it has less Sum.~n"),
 				NewHS is HS + HumanScore,
-				printRoundScore(R, NewHS, CS);
+				printRoundScore(TS, R, NewHS, CS);
 				format("Computer won since it has less Sum.~n"),
 				NewCS is CS + ComputerScore,
-				printRoundScore(R, HS, NewCS)
+				printRoundScore(TS, R, HS, NewCS)
 			)
 		);
 		(=(HH, []) ->
 				format("Human's Hand is Empty. Human wins the Round"),
 				format("~nHuman gets ~w points.", [HumanScore]),
 				NewHS is HS + HumanScore,
-				printRoundScore(R, NewHS, CS)
+				printRoundScore(TS, R, NewHS, CS)
 			;
 				(=(CH, []) ->
 					format("Computer's Hand is Empty. Computer wins the Round"),
 					format("~nComputer gets ~w points.", [ComputerScore]),
 					NewCS is CS + ComputerScore,
-					printRoundScore(R, HS, NewCS)
+					printRoundScore(TS, R, HS, NewCS)
 					;
 					[_, _, _, _, _, _, _, _, _, T, _] = State,
 					printGameDetails(State),
@@ -434,11 +434,22 @@ calculateRoundScores([Head | Tail], Sum, Score) :-
 	calculateRoundScores(Tail, NewSum, Score).
 
 /* Print Score of Each Player */
-printRoundScore(Round, HS, CS) :-
-	nl,	write("--------------Round Score--------------"),nl,
-	format("~nRound: ~w ~nHuman Score: ~w~nComputer Score: ~w~n------------------------------------~n", [Round, HS, CS]),
+printRoundScore(TS, Round, HS, CS) :-
+	nl,	write("--------------Updated Score--------------"),nl,
+	format("~nRound: ~w ~nHuman Score: ~w~nComputer Score: ~w~n----------------------------------------~n", [Round, HS, CS]),
 	(=(Round, 7) -> NewRound is 1; NewRound is Round + 1),
-	startGame(NewRound, HS, CS).
+	checkIfTournamentEnded(TS, NewRound, HS, CS).
+
+/* Check if Tournament has Ended */
+checkIfTournamentEnded(TS, Round, HS, CS) :-
+	(>=(HS, TS) ->
+		format("Human wins the Tournament.");
+		(>=(CS, TS) ->
+			format("Computer wins the Tournament.");
+			startGame(Round, HS, CS)
+		)
+	).
+	
 
 /*----------------------------------------------------------------------------------*/
 /*---------------------------------Play Turns---------------------------------------*/
