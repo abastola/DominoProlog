@@ -5,8 +5,7 @@
 /* New Game Data */
 getRawData([200,1, 
 	[[], 0], [[], 0], [], 
-	[[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [0, 6], [1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [2, 2], 
-	[2, 3], [2, 4], [2, 5], [2, 6], [3, 3], [3, 4], [3, 5], [3, 6],	[4, 4], [4, 5], [4, 6], [5, 5], [5, 6], [6, 6]], 
+	[[2, 3], [2, 4], [2, 5], [2, 6], [3, 3], [3, 4], [3, 5], [3, 6], [4, 4], [4, 5], [4, 6], [5, 5], [5, 6], [6, 6]], 
 	false, computer]).
 
 /* Get Game State of New or Loaded Game */
@@ -264,8 +263,7 @@ performHumanCommand(State, "draw", [], Drawn) :-
 
 /* Human passes */
 performHumanCommand(State, "pass", [], Drawn) :-
-	format("Drawn earlier: ~w~n", [Drawn]),
-	[TS, R, HS, CS, HH, CH, L, B, P, T] = State,
+	[TS, R, HS, CS, HH, CH, L, B, P, _] = State,
 	getLeftRightPips(L, Left, Right),
 	findAllPossibleMoveHuman(Left, Right, "human", HH, P, AllMoves),
 	findBestPossibleMove(AllMoves, BestMove),
@@ -302,7 +300,7 @@ performHumanCommand(State, "help", [], Drawn) :-
 /* Insert Domino to Left */
 placeOnLeftHuman(State, [P1, P2]) :-
 	[TS, R, HS, CS, HH, CH, L, B, _, _] = State,
-	delete(HH, [P1, P2], NewHand),
+	(member([P1, P2], HH) -> delete(HH, [P1, P2], NewHand); delete(HH, [P2, P1], NewHand)),
 	pushFront([P1, P2], L, NewLayout),
 	format("Human placed ~w on left.~n", [[P1,P2]]),
 	NewState = [TS, R, HS, CS, NewHand, CH, NewLayout, B, "false", "computer"],
@@ -311,7 +309,7 @@ placeOnLeftHuman(State, [P1, P2]) :-
 /* Insert Domino to Right */
 placeOnRightHuman(State, [P1, P2]) :-
 	[TS, R, HS, CS, HH, CH, L, B, _, _] = State,
-	delete(HH, [P1, P2], NewHand),
+	(member([P1, P2], HH) -> delete(HH, [P1, P2], NewHand); delete(HH, [P2, P1], NewHand)),
 	pushEnd([P1, P2], L, NewLayout),
 	format("Human placed ~w on Right.~n", [[P1,P2]]),
 	NewState = [TS, R, HS, CS, NewHand, CH, NewLayout, B, "false", "computer"],
@@ -330,10 +328,10 @@ pushEnd(Element, List, NewList) :-
 /*---------------------------------Get Computer Move--------------------------------*/
 /*----------------------------------------------------------------------------------*/
 
-performComputerCommand(State, ["left", P1, P2], Drawn):-
-	[TS, R, HS, CS, HH, CH, L, B, P, T] = State,
-	delete(CH, [P1, P2], NewHand),
-	getLeftRightPips(L, Left, Right),
+performComputerCommand(State, ["left", P1, P2], _):-
+	[TS, R, HS, CS, HH, CH, L, B, _, _] = State,
+	(member([P1, P2], CH) -> delete(CH, [P1, P2], NewHand); delete(CH, [P2, P1], NewHand)),
+	getLeftRightPips(L, Left, _),
 	(=(Left, P1) ->
 		pushFront([P2, P1], L, NewLayout);
 		pushFront([P1, P2], L, NewLayout)
@@ -342,10 +340,10 @@ performComputerCommand(State, ["left", P1, P2], Drawn):-
 	NewState = [TS, R, HS, CS, HH, NewHand, NewLayout, B, "false", "human"],
 	nextTurn(NewState).
 
-performComputerCommand(State, ["right", P1, P2], Drawn):-
-	[TS, R, HS, CS, HH, CH, L, B, P, T] = State,
-	delete(CH, [P1, P2], NewHand),
-	getLeftRightPips(L, Left, Right),
+performComputerCommand(State, ["right", P1, P2], _):-
+	[TS, R, HS, CS, HH, CH, L, B, _, _] = State,
+	(member([P1, P2], CH) -> delete(CH, [P1, P2], NewHand); delete(CH, [P2, P1], NewHand)),
+	getLeftRightPips(L, _, Right),
 	(=(Right, P1) ->
 		pushEnd([P1, P2], L, NewLayout);
 		pushEnd([P2, P1], L, NewLayout)
@@ -374,7 +372,6 @@ performComputerCommand(State, [], Drawn) :-
 			nextTurn(NewState)
 	).
 
-
 /*----------------------------------------------------------------------------------*/
 /*---------------------------------Play Turns---------------------------------------*/
 /*----------------------------------------------------------------------------------*/
@@ -388,7 +385,7 @@ getLeftRightPips(Layout, Left, Right) :-
 
 /* Play the Turn. Also Determine if the round or tournament ended */
 nextTurn(State) :-
-	[_, _, _, _, _, _, _, _, P, T] = State,
+	[_, _, _, _, _, _, _, _, _, T] = State,
 	printGameDetails(State),
 	play(T, State, "false").
 
@@ -400,7 +397,7 @@ play("human", State, Drawn) :-
 /* Computer Turn */
 play("computer", State, Drawn) :-
 	nl,	write("-------------Computer's Turn--------------"),nl,
-	[TS, R, HS, CS, HH, CH, L, B, P, T] = State,
+	[_, _, _, _, _, CH, L, _, P, _] = State,
 	getLeftRightPips(L, Left, Right),
 	findAllPossibleMoveComputer(Left, Right, "computer", CH, P, AllMoves),
 	format("Possible Moves are: ~w.~n", [AllMoves]),
@@ -411,7 +408,6 @@ play("computer", State, Drawn) :-
 /*----------------------------------------------------------------------------------*/
 /*---------------------------------Start Game---------------------------------------*/
 /*----------------------------------------------------------------------------------*/
-
 startGame() :-
 	getGameState(State),
 	distributeHands(State, NewState),
