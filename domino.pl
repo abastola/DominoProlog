@@ -1,33 +1,69 @@
 /*----------------------------------------------------------------------------------*/
 /*----------------------------Parse Data and Print Data-----------------------------*/
 /*----------------------------------------------------------------------------------*/
-
 /* New Game Data */
-getRawData([5,1, 
-	[[], 0], [[], 0], [], 
-	[[2, 3], [2, 4], [2, 5], [2, 6], [3, 3], [3, 4], [3, 5], [3, 6], [4, 4], [4, 5], [4, 6], [5, 5], [5, 6], [6, 6]], 
-	false, computer]).
+getRawData(FileData) :-
+	open("abc.txt", read, Str),
+	read(Str, FileData),
+	close(Str).
 
 /* Get Game State of New or Loaded Game */
-getGameState(State):-
-	getRawData(Data),
+getGameState(Data, State):-
 	[TS|_] = Data,
 	[ _, R | _ ] = Data,
-	[ _, _, [_, HS] | _ ] = Data,
-	[ _, _, _, [_, CS] | _ ] = Data,
-	[ _, _, [HH, _] | _ ] = Data,
-	[ _, _, _, [CH, _] | _ ] = Data,
-	[ _, _, _, _, L | _ ] = Data,
-	[ _, _, _, _, _, B  | _ ] = Data,
-	[ _, _, _, _, _, _, P, _ ] = Data,
-	[ _, _, _, _, _, _, _, T] = Data,
-	State = [TS, R, HS, CS, HH, CH, L, B, P, T, 0].
+	[ _, _, HH | _ ] = Data,
+	[ _, _, _, HS | _ ] = Data,
+	[ _, _, _, _, CH | _ ] = Data,
+	[ _, _, _, _, _, CS | _ ] = Data,
+	[ _, _, _, _, _, _, L | _ ] = Data,
+	[ _, _, _, _, _, _, _, B | _ ] = Data,
+	[ _, _, _, _, _, _, _, _, P | _ ] = Data,
+	[ _, _, _, _, _, _, _, _, _, T ] = Data,
+	atom_string(T, T1),
+	atom_string(P, Pip1),
+	State = [TS, R, HS, CS, HH, CH, L, B, Pip1, T1, 0].
+
 
 /* Print the Game State */
 printGameDetails(State):-
 	[TS, R, HS, CS, HH, CH, L, B, P, T, _] = State,
-	format('~nRound: ~w ~nTournament Score: ~w ~nLayout: L- ~w -R ~nBoneyard: ~w ~nHuman Score: ~w ~nComputer Score: ~w ~nHuman Hand: ~w ~nComputer Hand: ~w ~nTurn: ~w ~nPrevious Player Passed: ~w ~n', 
-			[R, TS, L, B, HS, CS, HH, CH, T, P]).
+	format("~n-----------------------------------------------------------"),
+	format("~n-----------------------------------------------------------"),
+	format("~nRound: ~w~nTournament Score: ~w~nHuman Score: ~w~nComputer Score: ~w~nTurn: ~w~nPrevious Player Passed: ~w~n~nLayout: ~n", [R, TS, HS, CS, T, P]),
+	placeLayout(L, "  ", "L ", "  "),
+	format("~nBoneyard:~n~w~n~nHuman Hand:~n~w~n~nComputer Hand:~n~w~n", [B, HH, CH]),
+	format("~n-----------------------------------------------------------"),
+	format("~n-----------------------------------------------------------~n").
+
+/* Format Layout to represent non-double as straight and double as cross */
+placeLayout([], FirstRow, SecondRow, ThirdRow) :-
+	string_concat(SecondRow, "R", SecondRowFinal),
+	format("~w~n~w~n~w~n", [FirstRow, SecondRowFinal, ThirdRow]),
+	true.
+
+placeLayout([Head | Tail], FirstRow, SecondRow, ThirdRow) :-
+	[Pip1, Pip2] = Head,
+	number_string(Pip1, Pip1Str),
+	number_string(Pip2, Pip2Str),
+	concatDominos([Pip1Str, Pip2Str], FirstRow, SecondRow, ThirdRow, FirstRowConcat, SecondRowConcat, ThirdRowConcat),
+	placeLayout(Tail, FirstRowConcat, SecondRowConcat, ThirdRowConcat).
+
+/* concat double domino */
+concatDominos([Pip1, Pip1], FirstRow, SecondRow, ThirdRow, FirstRowConcat, SecondRowConcat, ThirdRowConcat) :-
+	string_concat(FirstRow, Pip1, A),
+	string_concat(A, " ", FirstRowConcat),
+	string_concat(SecondRow, "| ", SecondRowConcat),
+	string_concat(ThirdRow, Pip1, C),
+	string_concat(C, " ", ThirdRowConcat).
+
+/* concat non double domino */
+concatDominos([Pip1, Pip2], FirstRow, SecondRow, ThirdRow, FirstRowConcat, SecondRowConcat, ThirdRowConcat) :-
+	string_concat(FirstRow, "    ", FirstRowConcat),
+	string_concat(Pip1, "-", B1),
+	string_concat(B1, Pip2, B2),
+	string_concat(B2, " ", B3),
+	string_concat(SecondRow, B3, SecondRowConcat),
+	string_concat(ThirdRow, "    ", ThirdRowConcat).
 
 /*----------------------------------------------------------------------------------*/
 /*---------------------------------Distribute Hand----------------------------------*/
@@ -38,6 +74,7 @@ getSixDominos([D1, D2, D3, D4, D5, D6 | Tail], SixDominos, NewBoneyard) :-
 	SixDominos = [D1, D2, D3, D4, D5, D6],
 	NewBoneyard = Tail.
 
+/* DIstribute hands and get new State */
 distributeHandsToPlayers(State, NewState) :-
 	[TS, R, HS, CS, _, _, L, B, P, T, E] = State,
 	random_permutation(B, Boneyard),
@@ -49,7 +86,6 @@ distributeHandsToPlayers(State, NewState) :-
 
 /* Distribute Hand */
 distributeHands(State, FinalState) :-
-	getGameState(State),
 	distributeHandsToPlayers(State, NewState),
 	printGameDetails(NewState),
 	FinalState = NewState.
@@ -200,18 +236,18 @@ getHumanInput(State, Drawn) :-
 	 read_line_to_codes(user_input, UserInput),
 	 split_string(UserInput, " ", "", A),
 	 [T1 | T2] = A,
-	 (member(A, [["draw"], ["left", _, _], ["right", _, _], ["pass"], ["help"]]) ->
+	 (member(A, [["draw"], ["left", _, _], ["right", _, _], ["pass"], ["help"], ["save"]]) ->
 			performHumanCommand(State, T1, T2, Drawn)
 	 		;
-			write("Invalid Move. Your move must be one of these: \n\t1. left s1 s2\n\t2. right s1 s2 \n\t3. draw \n\t4. pass \n\t5. help"), nl, nl,
+			write("Invalid Move. Your move must be one of these: \n\t1. left s1 s2\n\t2. right s1 s2 \n\t3. draw \n\t4. pass \n\t5. help \n\t6. save"), nl, nl,
 			getHumanInput(State, Drawn)
 	 ).
 
 /* Human inserts to left */
-performHumanCommand(State, "left", [P1, P2], Drawn) :-
-	atom_number(P1, S1),
-	atom_number(P2, S2),
-	[_, _, _, _, HH, _, L, _, P, _, E] = State,
+performHumanCommand(State, "left", [Pip1, Pip2], Drawn) :-
+	atom_number(Pip1, S1),
+	atom_number(Pip2, S2),
+	[_, _, _, _, HH, _, L, _, P, _, _] = State,
 	getLeftRightPips(L, Left, Right),
 	findAllPossibleMoveHuman(Left, Right, "human", HH, P, AllMoves),
 	((member(["left", S1, S2], AllMoves);member(["left", S2, S1], AllMoves)) ->
@@ -222,10 +258,10 @@ performHumanCommand(State, "left", [P1, P2], Drawn) :-
 	).
 
 /* Human inserts to right */
-performHumanCommand(State, "right", [P1, P2], Drawn) :-
-	atom_number(P1, S1),
-	atom_number(P2, S2),
-	[_, _, _, _, HH, _, L, _, P, _, E] = State,
+performHumanCommand(State, "right", [Pip1, Pip2], Drawn) :-
+	atom_number(Pip1, S1),
+	atom_number(Pip2, S2),
+	[_, _, _, _, HH, _, L, _, P, _, _] = State,
 	getLeftRightPips(L, Left, Right),
 	findAllPossibleMoveHuman(Left, Right, "human", HH, P, AllMoves),
 	((member(["right", S1, S2], AllMoves);member(["right", S2, S1], AllMoves)) ->
@@ -298,22 +334,32 @@ performHumanCommand(State, "help", [], Drawn) :-
 	),
 	play("human", State, Drawn).
 
+/* Human asks for help */
+performHumanCommand(State, "save", [], _) :-
+	[TS, R, HS, CS, HH, CH, L, B, P, T, _] = State,
+	NewState = [TS, R, HH, HS, CH, CS, L, B, P, T],
+	write("Enter file name to save (.txt): "),
+	read_line_to_codes(user_input, A),
+	open(A, write, Stream),
+	write(Stream, NewState), write(Stream, '.'),
+	close(Stream),
+	true.
 
 /* Insert Domino to Left */
-placeOnLeftHuman(State, [P1, P2]) :-
+placeOnLeftHuman(State, [Pip1, Pip2]) :-
 	[TS, R, HS, CS, HH, CH, L, B, _, _, _] = State,
-	(member([P1, P2], HH) -> delete(HH, [P1, P2], NewHand); delete(HH, [P2, P1], NewHand)),
-	pushFront([P1, P2], L, NewLayout),
-	format("Human placed ~w on left.~n", [[P1,P2]]),
+	(member([Pip1, Pip2], HH) -> delete(HH, [Pip1, Pip2], NewHand); delete(HH, [Pip2, Pip1], NewHand)),
+	pushFront([Pip1, Pip2], L, NewLayout),
+	format("Human placed ~w on left.~n", [[Pip1,Pip2]]),
 	NewState = [TS, R, HS, CS, NewHand, CH, NewLayout, B, "false", "computer", 0],
 	nextTurn(NewState).
 
 /* Insert Domino to Right */
-placeOnRightHuman(State, [P1, P2]) :-
+placeOnRightHuman(State, [Pip1, Pip2]) :-
 	[TS, R, HS, CS, HH, CH, L, B, _, _, _] = State,
-	(member([P1, P2], HH) -> delete(HH, [P1, P2], NewHand); delete(HH, [P2, P1], NewHand)),
-	pushEnd([P1, P2], L, NewLayout),
-	format("Human placed ~w on Right.~n", [[P1,P2]]),
+	(member([Pip1, Pip2], HH) -> delete(HH, [Pip1, Pip2], NewHand); delete(HH, [Pip2, Pip1], NewHand)),
+	pushEnd([Pip1, Pip2], L, NewLayout),
+	format("Human placed ~w on Right.~n", [[Pip1,Pip2]]),
 	NewState = [TS, R, HS, CS, NewHand, CH, NewLayout, B, "false", "computer", 0],
 	nextTurn(NewState).
 
@@ -334,30 +380,33 @@ pushEnd(Element, List, NewList) :-
 /*---------------------------------Get Computer Move--------------------------------*/
 /*----------------------------------------------------------------------------------*/
 
-performComputerCommand(State, ["left", P1, P2], _):-
+/* Computer places on left */
+performComputerCommand(State, ["left", Pip1, Pip2], _):-
 	[TS, R, HS, CS, HH, CH, L, B, _, _, _] = State,
-	(member([P1, P2], CH) -> delete(CH, [P1, P2], NewHand); delete(CH, [P2, P1], NewHand)),
+	(member([Pip1, Pip2], CH) -> delete(CH, [Pip1, Pip2], NewHand); delete(CH, [Pip2, Pip1], NewHand)),
 	getLeftRightPips(L, Left, _),
-	(=(Left, P1) ->
-		pushFront([P2, P1], L, NewLayout);
-		pushFront([P1, P2], L, NewLayout)
+	(=(Left, Pip1) ->
+		pushFront([Pip2, Pip1], L, NewLayout);
+		pushFront([Pip1, Pip2], L, NewLayout)
 	),
-	format("Computer placed ~w on left since it has the maximum sum out all possible moves.~n", [[P1,P2]]),
+	format("Computer placed ~w on left since it has the maximum sum out all possible moves.~n", [[Pip1,Pip2]]),
 	NewState = [TS, R, HS, CS, HH, NewHand, NewLayout, B, "false", "human", 0],
 	nextTurn(NewState).
 
-performComputerCommand(State, ["right", P1, P2], _):-
+/* Computer places on right */
+performComputerCommand(State, ["right", Pip1, Pip2], _):-
 	[TS, R, HS, CS, HH, CH, L, B, _, _, _] = State,
-	(member([P1, P2], CH) -> delete(CH, [P1, P2], NewHand); delete(CH, [P2, P1], NewHand)),
+	(member([Pip1, Pip2], CH) -> delete(CH, [Pip1, Pip2], NewHand); delete(CH, [Pip2, Pip1], NewHand)),
 	getLeftRightPips(L, _, Right),
-	(=(Right, P1) ->
-		pushEnd([P1, P2], L, NewLayout);
-		pushEnd([P2, P1], L, NewLayout)
+	(=(Right, Pip1) ->
+		pushEnd([Pip1, Pip2], L, NewLayout);
+		pushEnd([Pip2, Pip1], L, NewLayout)
 	),
-	format("Computer placed ~w on right since it has the maximum sum out of all possible moves.~n", [[P1,P2]]),
+	format("Computer placed ~w on right since it has the maximum sum out of all possible moves.~n", [[Pip1,Pip2]]),
 	NewState = [TS, R, HS, CS, HH, NewHand, NewLayout, B, "false", "human", 0],
 	nextTurn(NewState).
 
+/* Computer Draws or Passes */
 performComputerCommand(State, [], Drawn) :-
 	[TS, R, HS, CS, HH, CH, L, B, P, T, E] = State,
 	(=(Drawn, "false") ->
@@ -429,8 +478,8 @@ calculateRoundScores([], Sum, Score) :-
 	Score = Sum.
 
 calculateRoundScores([Head | Tail], Sum, Score) :-
-	[P1, P2] = Head,
-	NewSum is P1 + P2 + Sum,
+	[Pip1, Pip2] = Head,
+	NewSum is Pip1 + Pip2 + Sum,
 	calculateRoundScores(Tail, NewSum, Score).
 
 /* Print Score of Each Player */
@@ -446,10 +495,9 @@ checkIfTournamentEnded(TS, Round, HS, CS) :-
 		format("Human wins the Tournament.");
 		(>=(CS, TS) ->
 			format("Computer wins the Tournament.");
-			startGame(Round, HS, CS)
+			startRound(TS, Round, HS, CS)
 		)
 	).
-	
 
 /*----------------------------------------------------------------------------------*/
 /*---------------------------------Play Turns---------------------------------------*/
@@ -475,9 +523,36 @@ play("computer", State, Drawn) :-
 /*---------------------------------Start Game---------------------------------------*/
 /*----------------------------------------------------------------------------------*/
 
-startGame(Round, HumanScore, ComputerScore) :-
-	getGameState(State),
+/* start new round */
+startRound(TournamentScore, Round, HumanScore, ComputerScore) :-
+	getRawData(Data),
+	getGameState(Data, State),
 	distributeHands(State, NewState),
-	[TS, R, HS, CS, HH, CH, L, B, P, T, E] = NewState,
-	NewRoundState = [TS, Round, HumanScore, ComputerScore, HH, CH, L, B, P, T, E],
-	placeEngine("human", NewRoundState).	
+	[_, _, _, _, HH, CH, L, B, P, T, E] = NewState,
+	NewRoundState = [TournamentScore, Round, HumanScore, ComputerScore, HH, CH, L, B, P, T, E],
+	placeEngine("human", NewRoundState).
+
+/* start the game */
+beginGame() :-
+	working_directory(_, "C:/Users/ZDF6BJK/Desktop/Prolog"),
+	write("Enter 'new' for new game or 'filename' to load file: "),
+	read_line_to_codes(user_input, A),
+	atom_string(A, Filename),
+	(=(Filename, "new") ->
+		write("Enter tournament score: "),
+		read(TournamentScore),
+		getRawData(Data),
+		getGameState(Data, State),
+		distributeHands(State, NewState),
+		[_, R, HS, CS, HH, CH, L, B, P, T, E] = NewState,
+		NewRoundState = [TournamentScore, R, HS, CS, HH, CH, L, B, P, T, E],
+		placeEngine("human", NewRoundState)	
+		;
+		open(Filename, read, Str),
+		read(Str, Data),
+		close(Str),
+		getGameState(Data, State),
+		printGameDetails(State),
+		[_, _, _, _, _, _, L, _, _, _, _] = State,
+		(length(L, 0) -> placeEngine("human", State); nextTurn(State))
+	).
